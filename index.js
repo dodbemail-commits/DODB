@@ -16,6 +16,7 @@ import {
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'node:http';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const TICKET_PANEL_CHANNEL_ID = '1528087138225229954';
@@ -49,6 +50,15 @@ function saveTickets(tickets) {
 
 let openTickets = loadTickets();
 
+// ─── Keep-alive HTTP server (required for Render web services) ────────────────
+const PORT = process.env.PORT || 3000;
+createServer((_, res) => {
+  res.writeHead(200);
+  res.end('Bot is running.');
+}).listen(PORT, () => {
+  console.log(`✅ HTTP keep-alive listening on port ${PORT}`);
+});
+
 // ─── Client ───────────────────────────────────────────────────────────────────
 const client = new Client({
   intents: [
@@ -61,10 +71,12 @@ const client = new Client({
 // ─── Ready ────────────────────────────────────────────────────────────────────
 client.once(Events.ClientReady, async (c) => {
   console.log(`✅ Logged in as ${c.user.tag}`);
+
   c.user.setPresence({
     activities: [{ name: 'DO On Top', type: 0 }],
     status: 'online',
   });
+
   await sendTicketPanel();
 });
 
@@ -107,6 +119,7 @@ async function sendTicketPanel() {
       );
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
+
     await channel.send({ embeds: [embed], components: [row] });
     console.log('✅ Ticket panel sent to channel', TICKET_PANEL_CHANNEL_ID);
   } catch (err) {
@@ -130,6 +143,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await handleTicketCreate(interaction);
       return;
     }
+
     if (interaction.isButton()) {
       if (interaction.customId.startsWith('claim_')) await handleClaim(interaction);
       else if (interaction.customId.startsWith('close_')) await handleClose(interaction);
@@ -165,6 +179,7 @@ async function handleTicketCreate(interaction) {
   const ticketLabel = isRobux ? 'Robux' : 'Cash';
   const ticketPrefix = isRobux ? 'robux' : 'cash';
   const ticketEmoji = isRobux ? '🎮' : '💵';
+
   const guild = interaction.guild;
   const safeUsername = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
 
@@ -175,15 +190,28 @@ async function handleTicketCreate(interaction) {
       { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
       {
         id: userId,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+        ],
       },
       {
         id: STAFF_ROLE_ID,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+        ],
       },
       {
         id: client.user.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ReadMessageHistory],
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ManageChannels,
+          PermissionFlagsBits.ReadMessageHistory,
+        ],
       },
     ],
   });
@@ -208,14 +236,23 @@ async function handleTicketCreate(interaction) {
     .setTimestamp();
 
   const claimBtn = new ButtonBuilder()
-    .setCustomId(`claim_${userId}`).setLabel('Claim').setStyle(ButtonStyle.Success).setEmoji('✋');
+    .setCustomId(`claim_${userId}`)
+    .setLabel('Claim')
+    .setStyle(ButtonStyle.Success)
+    .setEmoji('✋');
+
   const closeBtn = new ButtonBuilder()
-    .setCustomId(`close_${userId}`).setLabel('Close').setStyle(ButtonStyle.Danger).setEmoji('🔒');
+    .setCustomId(`close_${userId}`)
+    .setLabel('Close')
+    .setStyle(ButtonStyle.Danger)
+    .setEmoji('🔒');
+
+  const buttonRow = new ActionRowBuilder().addComponents(claimBtn, closeBtn);
 
   await ticketChannel.send({
     content: `<@${userId}> | <@&${STAFF_ROLE_ID}>`,
     embeds: [ticketEmbed],
-    components: [new ActionRowBuilder().addComponents(claimBtn, closeBtn)],
+    components: [buttonRow],
   });
 
   await interaction.editReply({
@@ -225,53 +262,80 @@ async function handleTicketCreate(interaction) {
 
 // ─── Claim ticket ─────────────────────────────────────────────────────────────
 async function handleClaim(interaction) {
-  if (!(await hasStaffPermission(interaction.member))) {
-    await interaction.reply({ content: '❌ You do not have permission to claim tickets.', ephemeral: true });
+  const member = interaction.member;
+
+  if (!(await hasStaffPermission(member))) {
+    await interaction.reply({
+      content: '❌ You do not have permission to claim tickets.',
+      ephemeral: true,
+    });
     return;
   }
 
   const userId = interaction.customId.replace('claim_', '');
   const claimedBtn = new ButtonBuilder()
-    .setCustomId(`claim_${userId}`).setLabel('Claimed').setStyle(ButtonStyle.Secondary).setEmoji('✋').setDisabled(true);
+    .setCustomId(`claim_${userId}`)
+    .setLabel('Claimed')
+    .setStyle(ButtonStyle.Secondary)
+    .setEmoji('✋')
+    .setDisabled(true);
+
   const closeBtn = new ButtonBuilder()
-    .setCustomId(`close_${userId}`).setLabel('Close').setStyle(ButtonStyle.Danger).setEmoji('🔒');
+    .setCustomId(`close_${userId}`)
+    .setLabel('Close')
+    .setStyle(ButtonStyle.Danger)
+    .setEmoji('🔒');
 
-  await interaction.update({ components: [new ActionRowBuilder().addComponents(claimedBtn, closeBtn)] });
+  const updatedRow = new ActionRowBuilder().addComponents(claimedBtn, closeBtn);
 
-  await interaction.followUp({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0x2ECC71)
-        .setDescription(`✋ **Ticket Claimed!**\n\nThis ticket has been claimed by ${interaction.user}.\nThey will be assisting you shortly!`)
-        .setTimestamp(),
-    ],
-  });
+  await interaction.update({ components: [updatedRow] });
+
+  const claimEmbed = new EmbedBuilder()
+    .setColor(0x2ECC71)
+    .setDescription(
+      `✋ **Ticket Claimed!**\n\n` +
+      `This ticket has been claimed by ${interaction.user}.\n` +
+      `They will be assisting you shortly!`
+    )
+    .setTimestamp();
+
+  await interaction.followUp({ embeds: [claimEmbed] });
 }
 
 // ─── Close ticket ─────────────────────────────────────────────────────────────
 async function handleClose(interaction) {
-  if (!(await hasStaffPermission(interaction.member))) {
-    await interaction.reply({ content: '❌ You do not have permission to close tickets.', ephemeral: true });
+  const member = interaction.member;
+
+  if (!(await hasStaffPermission(member))) {
+    await interaction.reply({
+      content: '❌ You do not have permission to close tickets.',
+      ephemeral: true,
+    });
     return;
   }
 
   const userId = interaction.customId.replace('close_', '');
 
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0xE74C3C)
-        .setDescription(`🔒 **Ticket Closing**\n\nThis ticket is being closed by ${interaction.user}.\nThe channel will be deleted in **5 seconds**.`)
-        .setTimestamp(),
-    ],
-  });
+  const closeEmbed = new EmbedBuilder()
+    .setColor(0xE74C3C)
+    .setDescription(
+      `🔒 **Ticket Closing**\n\n` +
+      `This ticket is being closed by ${interaction.user}.\n` +
+      `The channel will be deleted in **5 seconds**.`
+    )
+    .setTimestamp();
+
+  await interaction.reply({ embeds: [closeEmbed] });
 
   delete openTickets[userId];
   saveTickets(openTickets);
 
   setTimeout(async () => {
-    try { await interaction.channel?.delete(); }
-    catch (err) { console.error('Failed to delete ticket channel:', err); }
+    try {
+      await interaction.channel?.delete();
+    } catch (err) {
+      console.error('Failed to delete ticket channel:', err);
+    }
   }, 5000);
 }
 
