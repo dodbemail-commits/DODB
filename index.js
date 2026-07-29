@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType, PermissionFlagsBits, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType, PermissionFlagsBits, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import express from 'express';
 
 // Setup Express web server for Render
@@ -79,10 +79,32 @@ client.once('ready', async () => {
     }
 });
 
-// Interaction handler for opening and closing tickets
+// Interaction handler
 client.on('interactionCreate', async interaction => {
+    // Step 1: When user selects from the main dropdown, pop open a Modal asking for the reason
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select') {
         const selectedValue = interaction.values[0];
+
+        const modal = new ModalBuilder()
+            .setCustomId(`ticket_modal_${selectedValue}`)
+            .setTitle('Ticket Reason');
+
+        const reasonInput = new TextInputBuilder()
+            .setCustomId('ticket_reason_input')
+            .setLabel('Please describe the reason for your ticket:')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('Type your reason here...')
+            .setRequired(true);
+
+        modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+        await interaction.showModal(modal);
+        return;
+    }
+
+    // Step 2: Handle modal submission, create the channel, and display the reason inside
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
+        const selectedValue = interaction.customId.replace('ticket_modal_', '');
+        const reason = interaction.fields.getTextInputValue('ticket_reason_input');
         const guild = interaction.guild;
         const member = interaction.member;
 
@@ -92,6 +114,8 @@ client.on('interactionCreate', async interaction => {
         if (selectedValue === 'question_ticket') ticketName = `question-${member.user.username}`;
 
         try {
+            await interaction.deferReply({ ephemeral: true });
+
             const ticketChannel = await guild.channels.create({
                 name: ticketName,
                 type: ChannelType.GuildText,
@@ -122,23 +146,28 @@ client.on('interactionCreate', async interaction => {
             const ticketEmbed = new EmbedBuilder()
                 .setTitle('OTB Ticket Support')
                 .setColor(0xFFA500)
-                .setDescription(`Hello ${member},\nThank you for opening a ticket! Staff will be with you shortly.\n\nReason: **${selectedValue.replace('_', ' ').toUpperCase()}**`);
+                .setDescription(
+                    `Hello ${member},\nThank you for opening a ticket! Staff will be with you shortly.\n\n` +
+                    `**Category:** ${selectedValue.replace('_', ' ').toUpperCase()}\n` +
+                    `**Reason provided:**\n> ${reason}`
+                );
 
             await ticketChannel.send({ content: `${member}`, embeds: [ticketEmbed], components: [closeButton] });
 
-            await interaction.reply({
-                content: `Your ticket has been created: ${ticketChannel}`,
-                ephemeral: true
+            await interaction.editReply({
+                content: `Your ticket has been created: ${ticketChannel}`
             });
         } catch (error) {
             console.error('Error creating ticket channel:', error);
-            await interaction.reply({
-                content: `There was an error creating your ticket channel: \`${error.message}\``,
-                ephemeral: true
-            });
+            if (interaction.deferred) {
+                await interaction.editReply({ content: `There was an error creating your ticket channel: \`${error.message}\`` });
+            } else {
+                await interaction.reply({ content: `There was an error creating your ticket channel: \`${error.message}\``, ephemeral: true });
+            }
         }
     }
 
+    // Step 3: Close the ticket button
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
         await interaction.reply({ content: 'Closing ticket in 5 seconds...', ephemeral: false });
         setTimeout(async () => {
