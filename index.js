@@ -22,7 +22,7 @@ const client = new Client({
     ]
 });
 
-// Minimum staff role ID required to claim/close tickets
+// Minimum staff role ID required to claim/close tickets and view them
 const STAFF_ROLE_ID = '1528086960042803390';
 
 client.once('ready', async () => {
@@ -147,6 +147,10 @@ client.on('interactionCreate', async interaction => {
                     },
                     {
                         id: member.id,
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                    },
+                    {
+                        id: STAFF_ROLE_ID,
                         allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
                     },
                     {
