@@ -84,8 +84,26 @@ client.once('ready', async () => {
 
 // Interaction handler
 client.on('interactionCreate', async interaction => {
-    // Step 1: When user selects from the main dropdown, show the modal
+    // Step 1: When user selects from the main dropdown, check if they already have an active ticket channel
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select') {
+        const guild = interaction.guild;
+        const member = interaction.member;
+
+        // Check if an existing text channel name contains the member's username or if they already have an open ticket
+        const existingChannel = guild.channels.cache.find(c => 
+            c.type === ChannelType.GuildText && 
+            (c.name.includes(`buying-${member.user.username.toLowerCase()}`) || 
+             c.name.includes(`report-${member.user.username.toLowerCase()}`) || 
+             c.name.includes(`question-${member.user.username.toLowerCase()}`))
+        );
+
+        if (existingChannel) {
+            return interaction.reply({ 
+                content: `You already have an open ticket here: ${existingChannel}. Please close it before opening a new one.`, 
+                ephemeral: true 
+            });
+        }
+
         const selectedValue = interaction.values[0];
 
         const modal = new ModalBuilder()
@@ -112,9 +130,9 @@ client.on('interactionCreate', async interaction => {
         const member = interaction.member;
 
         let ticketName = 'ticket';
-        if (selectedValue === 'buying_ticket') ticketName = `buying-${member.user.username}`;
-        if (selectedValue === 'report_ticket') ticketName = `report-${member.user.username}`;
-        if (selectedValue === 'question_ticket') ticketName = `question-${member.user.username}`;
+        if (selectedValue === 'buying_ticket') ticketName = `buying-${member.user.username.toLowerCase()}`;
+        if (selectedValue === 'report_ticket') ticketName = `report-${member.user.username.toLowerCase()}`;
+        if (selectedValue === 'question_ticket') ticketName = `question-${member.user.username.toLowerCase()}`;
 
         try {
             await interaction.deferReply({ ephemeral: true });
