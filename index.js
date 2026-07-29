@@ -22,6 +22,9 @@ const client = new Client({
     ]
 });
 
+// Minimum staff role ID required to claim/close tickets
+const STAFF_ROLE_ID = '1528086960042803390';
+
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
 
@@ -81,7 +84,7 @@ client.once('ready', async () => {
 
 // Interaction handler
 client.on('interactionCreate', async interaction => {
-    // Step 1: When user selects from the main dropdown, pop open a Modal asking for the reason
+    // Step 1: When user selects from the main dropdown, show the modal
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select') {
         const selectedValue = interaction.values[0];
 
@@ -101,7 +104,7 @@ client.on('interactionCreate', async interaction => {
         return;
     }
 
-    // Step 2: Handle modal submission, create the channel, and display the reason inside
+    // Step 2: Handle modal submission and create channel
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
         const selectedValue = interaction.customId.replace('ticket_modal_', '');
         const reason = interaction.fields.getTextInputValue('ticket_reason_input');
@@ -135,7 +138,13 @@ client.on('interactionCreate', async interaction => {
                 ]
             });
 
-            const closeButton = new ActionRowBuilder().addComponents(
+            // Action row with Claim and Close buttons
+            const actionRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('claim_ticket')
+                    .setLabel('Claim')
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('✋'),
                 new ButtonBuilder()
                     .setCustomId('close_ticket')
                     .setLabel('Close Ticket')
@@ -152,7 +161,12 @@ client.on('interactionCreate', async interaction => {
                     `**Reason provided:**\n> ${reason}`
                 );
 
-            await ticketChannel.send({ content: `${member}`, embeds: [ticketEmbed], components: [closeButton] });
+            // Ping the user who opened the ticket alongside the staff role
+            await ticketChannel.send({ 
+                content: `${member} | <@&${STAFF_ROLE_ID}>`, 
+                embeds: [ticketEmbed], 
+                components: [actionRow] 
+            });
 
             await interaction.editReply({
                 content: `Your ticket has been created: ${ticketChannel}`
@@ -167,16 +181,58 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // Step 3: Close the ticket button
-    if (interaction.isButton() && interaction.customId === 'close_ticket') {
-        await interaction.reply({ content: 'Closing ticket in 5 seconds...', ephemeral: false });
-        setTimeout(async () => {
-            try {
-                await interaction.channel.delete();
-            } catch (err) {
-                console.error('Failed to delete channel:', err);
+    // Step 3: Handle Button Actions (Claim / Close)
+    if (interaction.isButton()) {
+        const member = interaction.member;
+
+        // Check if member has the staff role ID or higher/administrator permissions
+        const hasStaffRole = member.roles.cache.has(STAFF_ROLE_ID) || member.permissions.has(PermissionFlagsBits.Administrator);
+
+        if (interaction.customId === 'claim_ticket') {
+            if (!hasStaffRole) {
+                return interaction.reply({ content: 'Only staff members with the designated role or higher can claim tickets!', ephemeral: true });
             }
-        }, 5000);
+
+            // Update button to gray (Secondary) and disabled "Claimed"
+            const updatedRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('claimed_disabled')
+                    .setLabel('Claimed')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true)
+                    .setEmoji('✅'),
+                new ButtonBuilder()
+                    .setCustomId('close_ticket')
+                    .setLabel('Close Ticket')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🔒')
+            );
+
+            await interaction.update({ components: [updatedRow] });
+
+            // Send gray/neutral embed saying user claimed the ticket
+            const claimedEmbed = new EmbedBuilder()
+                .setColor(0x808080) // Gray embed
+                .setDescription(`🔒 <@${member.id}> Claimed The Ticket`);
+
+            await interaction.channel.send({ embeds: [claimedEmbed] });
+            return;
+        }
+
+        if (interaction.customId === 'close_ticket') {
+            if (!hasStaffRole) {
+                return interaction.reply({ content: 'Only staff members with the designated role or higher can close tickets!', ephemeral: true });
+            }
+
+            await interaction.reply({ content: 'Closing ticket in 5 seconds...', ephemeral: false });
+            setTimeout(async () => {
+                try {
+                    await interaction.channel.delete();
+                } catch (err) {
+                    console.error('Failed to delete channel:', err);
+                }
+            }, 5000);
+        }
     }
 });
 
