@@ -34,10 +34,9 @@ client.once('ready', async () => {
             return;
         }
 
-        // Create the orange embed matching the layout (OTB, no footer)
         const embed = new EmbedBuilder()
             .setTitle('OTB')
-            .setColor(0xFFA500) // Orange color
+            .setColor(0xFFA500)
             .setDescription(
                 '**Buying/Free access**\n' +
                 'Choose this option if you want to purchase a paid access role. Staff will help you either get ranked or pay in the right way!\n\n' +
@@ -47,7 +46,6 @@ client.once('ready', async () => {
                 'Choose this option if u want to ask a question or want to know if someone if ok to or not'
             );
 
-        // Create the select menu with Cash and Robux options removed
         const row = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('ticket_select')
@@ -94,7 +92,6 @@ client.on('interactionCreate', async interaction => {
         if (selectedValue === 'question_ticket') ticketName = `question-${member.user.username}`;
 
         try {
-            // Create a private channel for the ticket
             const ticketChannel = await guild.channels.create({
                 name: ticketName,
                 type: ChannelType.GuildText,
@@ -119,11 +116,8 @@ client.on('interactionCreate', async interaction => {
                     .setCustomId('close_ticket')
                     .setLabel('Close Ticket')
                     .setStyle(ButtonStyle.Danger)
-                    .emoji = '🔒'
+                    .setEmoji('🔒')
             );
-
-            // Fix button emoji setting syntax cleanly
-            closeButton.components[0].setEmoji('🔒');
 
             const ticketEmbed = new EmbedBuilder()
                 .setTitle('OTB Ticket Support')
@@ -139,13 +133,12 @@ client.on('interactionCreate', async interaction => {
         } catch (error) {
             console.error('Error creating ticket channel:', error);
             await interaction.reply({
-                content: 'There was an error creating your ticket channel. Please try again later.',
+                content: `There was an error creating your ticket channel: \`${error.message}\``,
                 ephemeral: true
             });
         }
     }
 
-    // Handle closing the ticket
     if (interaction.isButton() && interaction.customId === 'close_ticket') {
         await interaction.reply({ content: 'Closing ticket in 5 seconds...', ephemeral: false });
         setTimeout(async () => {
