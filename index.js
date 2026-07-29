@@ -47,7 +47,7 @@ client.once('ready', async () => {
                 'Choose this option if u want to ask a question or want to know if someone if ok to or not'
             );
 
-        // Create the select menu containing all options
+        // Create the select menu with Cash and Robux options removed
         const row = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('ticket_select')
@@ -70,18 +70,6 @@ client.once('ready', async () => {
                         description: 'Ask a question or check status.',
                         value: 'question_ticket',
                         emoji: '❓'
-                    },
-                    {
-                        label: 'Cash Ticket (All Payment Methods)',
-                        description: 'Open a Cash ticket.',
-                        value: 'cash_ticket',
-                        emoji: '💵'
-                    },
-                    {
-                        label: 'Robux Ticket',
-                        description: 'Open a Robux ticket.',
-                        value: 'robux_ticket',
-                        emoji: '🎮'
                     }
                 ])
         );
