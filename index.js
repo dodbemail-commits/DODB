@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType } from 'discord.js';
+import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType, PermissionFlagsBits, ButtonBuilder, ButtonStyle } from 'discord.js';
 import express from 'express';
 
 // Setup Express web server for Render
@@ -81,15 +81,80 @@ client.once('ready', async () => {
     }
 });
 
-// Basic interaction handler
+// Interaction handler for opening and closing tickets
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isStringSelectMenu()) return;
-    if (interaction.customId === 'ticket_select') {
+    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select') {
         const selectedValue = interaction.values[0];
-        await interaction.reply({
-            content: `You selected: **${selectedValue}**. Ticket creation logic goes here!`,
-            ephemeral: true
-        });
+        const guild = interaction.guild;
+        const member = interaction.member;
+
+        let ticketName = 'ticket';
+        if (selectedValue === 'buying_ticket') ticketName = `buying-${member.user.username}`;
+        if (selectedValue === 'report_ticket') ticketName = `report-${member.user.username}`;
+        if (selectedValue === 'question_ticket') ticketName = `question-${member.user.username}`;
+
+        try {
+            // Create a private channel for the ticket
+            const ticketChannel = await guild.channels.create({
+                name: ticketName,
+                type: ChannelType.GuildText,
+                permissionOverwrites: [
+                    {
+                        id: guild.id,
+                        deny: [PermissionFlagsBits.ViewChannel]
+                    },
+                    {
+                        id: member.id,
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                    },
+                    {
+                        id: client.user.id,
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels]
+                    }
+                ]
+            });
+
+            const closeButton = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('close_ticket')
+                    .setLabel('Close Ticket')
+                    .setStyle(ButtonStyle.Danger)
+                    .emoji = '🔒'
+            );
+
+            // Fix button emoji setting syntax cleanly
+            closeButton.components[0].setEmoji('🔒');
+
+            const ticketEmbed = new EmbedBuilder()
+                .setTitle('OTB Ticket Support')
+                .setColor(0xFFA500)
+                .setDescription(`Hello ${member},\nThank you for opening a ticket! Staff will be with you shortly.\n\nReason: **${selectedValue.replace('_', ' ').toUpperCase()}**`);
+
+            await ticketChannel.send({ content: `${member}`, embeds: [ticketEmbed], components: [closeButton] });
+
+            await interaction.reply({
+                content: `Your ticket has been created: ${ticketChannel}`,
+                ephemeral: true
+            });
+        } catch (error) {
+            console.error('Error creating ticket channel:', error);
+            await interaction.reply({
+                content: 'There was an error creating your ticket channel. Please try again later.',
+                ephemeral: true
+            });
+        }
+    }
+
+    // Handle closing the ticket
+    if (interaction.isButton() && interaction.customId === 'close_ticket') {
+        await interaction.reply({ content: 'Closing ticket in 5 seconds...', ephemeral: false });
+        setTimeout(async () => {
+            try {
+                await interaction.channel.delete();
+            } catch (err) {
+                console.error('Failed to delete channel:', err);
+            }
+        }, 5000);
     }
 });
 
