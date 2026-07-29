@@ -1,5 +1,5 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType } = require('discord.js');
-const express = require('express');
+import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ChannelType } from 'discord.js';
+import express from 'express';
 
 // Setup Express web server for Render
 const app = express();
@@ -100,7 +100,7 @@ client.on('interactionCreate', async interaction => {
         const selectedValue = interaction.values[0];
         await interaction.reply({
             content: `You selected: **${selectedValue}**. Ticket creation logic goes here!`,
-            ephemeral: type => true // ephemeral response
+            ephemeral: true
         });
     }
 });
