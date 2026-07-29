@@ -23,7 +23,7 @@ const client = new Client({
 });
 
 // Minimum staff role ID required to claim/close tickets and view them
-const STAFF_ROLE_ID = '1532097778740629596';
+const STAFF_ROLE_ID = '1528086960042803390';
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
