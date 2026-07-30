@@ -1,7 +1,10 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 
-// Inside your bot's ready event or an interaction command:
-async function sendTicketPanel(client) {
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+client.once('ready', async () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+
     const channelId = '1528087138225229954';
     const channel = await client.channels.fetch(channelId);
 
@@ -57,4 +60,9 @@ async function sendTicketPanel(client) {
         embeds: [ticketEmbed],
         components: [row]
     });
-}
+    
+    console.log('Ticket panel sent successfully!');
+});
+
+// Replace with your bot token
+client.login('YOUR_BOT_TOKEN');
