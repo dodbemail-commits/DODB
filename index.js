@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -62,4 +61,5 @@ client.once('ready', async () => {
     console.log('Ticket panel sent successfully!');
 });
 
+// Render automatically reads your environment variable this way
 client.login(process.env.DISCORD_TOKEN);
