@@ -12,9 +12,8 @@ client.once('ready', async () => {
         return console.error('Channel not found!');
     }
 
-    // Create the purple embed
     const ticketEmbed = new EmbedBuilder()
-        .setColor('#8A2BE2') // Purple color hex
+        .setColor('#8A2BE2')
         .setTitle('DO')
         .addFields(
             {
@@ -31,7 +30,6 @@ client.once('ready', async () => {
             }
         );
 
-    // Create the select menu dropdown
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('ticket_select_menu')
         .setPlaceholder('Select a ticket option...')
@@ -55,7 +53,6 @@ client.once('ready', async () => {
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
 
-    // Send the panel to the specified channel
     await channel.send({
         embeds: [ticketEmbed],
         components: [row]
@@ -64,5 +61,4 @@ client.once('ready', async () => {
     console.log('Ticket panel sent successfully!');
 });
 
-// Replace with your bot token
-client.login('YOUR_BOT_TOKEN');
+client.login('PASTE_YOUR_BOT_TOKEN_HERE');
