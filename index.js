@@ -1,14 +1,11 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 
 const client = new Client({ 
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages 
-    ] 
+    intents: [GatewayIntentBits.Guilds] 
 });
 
 client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}!`);
+    console.log(`Bot logged in as ${client.user.tag}`);
 
     const channelId = '1528087138225229954';
     
@@ -16,7 +13,7 @@ client.once('ready', async () => {
         const channel = await client.channels.fetch(channelId);
 
         if (!channel) {
-            console.error('Error: Channel not found!');
+            console.error(`[ERROR] Channel with ID ${channelId} could not be found. Check if the ID is correct and the bot is in the server.`);
             return;
         }
 
@@ -66,9 +63,9 @@ client.once('ready', async () => {
             components: [row]
         });
         
-        console.log('SUCCESS: Ticket panel sent to the channel!');
+        console.log('[SUCCESS] The DO ticket panel has been posted to the channel.');
     } catch (error) {
-        console.error('Failed to send ticket panel:', error);
+        console.error('[CRITICAL ERROR] Failed to send the panel:', error);
     }
 });
 
