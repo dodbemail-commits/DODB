@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -61,4 +62,4 @@ client.once('ready', async () => {
     console.log('Ticket panel sent successfully!');
 });
 
-client.login('PASTE_YOUR_BOT_TOKEN_HERE');
+client.login(process.env.DISCORD_TOKEN);
