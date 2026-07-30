@@ -1,6 +1,11 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages 
+    ] 
+});
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -11,7 +16,8 @@ client.once('ready', async () => {
         const channel = await client.channels.fetch(channelId);
 
         if (!channel) {
-            return console.error('Channel not found!');
+            console.error('Error: Channel not found!');
+            return;
         }
 
         const ticketEmbed = new EmbedBuilder()
@@ -60,7 +66,7 @@ client.once('ready', async () => {
             components: [row]
         });
         
-        console.log('Ticket panel deployed successfully to the channel!');
+        console.log('SUCCESS: Ticket panel sent to the channel!');
     } catch (error) {
         console.error('Failed to send ticket panel:', error);
     }
