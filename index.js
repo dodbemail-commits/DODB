@@ -1,6 +1,7 @@
 import { 
     Client, 
     GatewayIntentBits, 
+    Partials, 
     EmbedBuilder, 
     ActionRowBuilder, 
     StringSelectMenuBuilder, 
@@ -23,8 +24,19 @@ http.createServer((req, res) => {
     console.log(`[HTTP] Server is listening on port ${PORT}`);
 });
 
+// FIXED: Added DirectMessages, MessageContent intents and Partials so DMs can be read properly
 const client = new Client({ 
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers] 
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.MessageContent
+    ],
+    partials: [
+        Partials.Channel,
+        Partials.Message
+    ]
 });
 
 const STAFF_ROLE_ID = '1528086960042803390';
@@ -146,7 +158,7 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-        // Generate random math numbers (e.g. addition between 5 and 20)
+        // Generate random math numbers (addition between 5 and 20)
         const num1 = Math.floor(Math.random() * 15) + 5;
         const num2 = Math.floor(Math.random() * 15) + 1;
         const correctAnswer = num1 + num2;
