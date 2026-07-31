@@ -224,7 +224,7 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // Step 3: Handle Button Actions (Claim / Close) restricted to Staff role or higher
+    // Step 3: Handle Button Actions (Claim / Close)
     if (interaction.isButton() && (interaction.customId === 'ticket_claim' || interaction.customId === 'ticket_close')) {
         const member = interaction.member;
         
@@ -236,7 +236,44 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (interaction.customId === 'ticket_claim') {
-            await interaction.reply({ content: `✅ Ticket claimed by ${member}.` });
+            const message = interaction.message;
+            const currentEmbed = message.embeds[0];
+
+            // Check if already claimed by looking at button state
+            const claimButton = message.components[0].components.find(c => c.customId === 'ticket_claim');
+            if (claimButton && claimButton.data.disabled) {
+                return interaction.reply({ content: '❌ This ticket has already been claimed!', ephemeral: true });
+            }
+
+            // Disable claim button and turn it secondary (gray), keep close button red
+            const updatedClaimButton = new ButtonBuilder()
+                .setCustomId('ticket_claim')
+                .setLabel('Claimed')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('✋')
+                .setDisabled(true);
+
+            const closeButton = new ButtonBuilder()
+                .setCustomId('ticket_close')
+                .setLabel('Close Ticket')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji('🔒');
+
+            const updatedRow = new ActionRowBuilder().addComponents(updatedClaimButton, closeButton);
+
+            await message.edit({
+                embeds: [currentEmbed],
+                components: [updatedRow]
+            });
+
+            // Send gray embed notification message that the user claimed it
+            const claimedEmbed = new EmbedBuilder()
+                .setColor('#2F3136') // Dark gray / neutral tone
+                .setDescription(`${member} Claimed The Ticket`);
+
+            await interaction.channel.send({ embeds: [claimedEmbed] });
+            await interaction.reply({ content: '✅ You have successfully claimed this ticket.', ephemeral: true });
+
         } else if (interaction.customId === 'ticket_close') {
             await interaction.reply({ content: '🔒 Closing ticket in 3 seconds...' });
             setTimeout(async () => {
