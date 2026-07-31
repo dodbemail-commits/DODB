@@ -32,6 +32,9 @@ const VERIFY_CHANNEL_ID = '1528087160790581368';
 const UNVERIFIED_ROLE_ID = '1532817646591017261';
 const VERIFIED_ROLE_ID = '1532817700886155415';
 
+// Store active math questions for users in memory: { userId: { num1, num2, answer } }
+const activeQuizQuestions = new Map();
+
 client.once('ready', async () => {
     console.log(`[READY] Logged in as ${client.user.tag}`);
 
@@ -147,14 +150,14 @@ client.on('interactionCreate', async interaction => {
             const dmEmbed = new EmbedBuilder()
                 .setColor('#8A2BE2')
                 .setTitle('DO Verification Quiz')
-                .setDescription('A quick easy quiz to know if they are bots or not. Click the button below to answer the verification check.');
+                .setDescription('A quick easy math quiz to know if you are a bot or not. Click the button below to solve the math question!');
 
             const dmButtonRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('open_verify_modal')
-                    .setLabel('Complete Quiz')
+                    .setLabel('Solve Math Question')
                     .setStyle(ButtonStyle.Primary)
-                    .setEmoji('📝')
+                    .setEmoji('🔢')
             );
 
             await member.send({
@@ -163,7 +166,7 @@ client.on('interactionCreate', async interaction => {
             });
 
             await interaction.reply({ 
-                content: '📩 I have sent you a private message with a quick easy quiz to know if they are bots or not!', 
+                content: '📩 I have sent you a private message with a math verification check!', 
                 ephemeral: true 
             });
         } catch (error) {
@@ -177,16 +180,23 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.isButton() && interaction.customId === 'open_verify_modal') {
+        // Generate random math numbers (e.g. addition between 1 and 20)
+        const num1 = Math.floor(Math.random() * 15) + 5;
+        const num2 = Math.floor(Math.random() * 15) + 1;
+        const correctAnswer = num1 + num2;
+
+        activeQuizQuestions.set(interaction.user.id, correctAnswer);
+
         const verifyModal = new ModalBuilder()
             .setCustomId('verification_quiz_modal')
             .setTitle('DO Verification Quiz');
 
         const answerInput = new TextInputBuilder()
             .setCustomId('verify_answer_input')
-            .setLabel('Type "verified" or answer your verification question:')
+            .setLabel(`What is ${num1} + ${num2}?`)
             .setStyle(TextInputStyle.Short)
             .setRequired(true)
-            .setMaxLength(100);
+            .setMaxLength(5);
 
         verifyModal.addComponents(new ActionRowBuilder().addComponents(answerInput));
         await interaction.showModal(verifyModal);
@@ -197,9 +207,18 @@ client.on('interactionCreate', async interaction => {
         await interaction.deferReply({ ephemeral: true });
 
         const user = interaction.user;
+        const userAnswer = interaction.fields.getTextInputValue('verify_answer_input').trim();
+        const expectedAnswer = activeQuizQuestions.get(user.id);
+
+        if (expectedAnswer === undefined || parseInt(userAnswer, 10) !== expectedAnswer) {
+            return interaction.editReply({ content: '❌ Incorrect math answer! Please click the verification button again to retry.' });
+        }
+
+        // Clean up memory
+        activeQuizQuestions.delete(user.id);
+
         const guild = await client.guilds.fetch(interaction.guildId || process.env.GUILD_ID).catch(() => null);
         
-        // If submitted via DM, we need to fetch the member object from the guild manually
         let member;
         try {
             const fetchedGuild = guild || client.guilds.cache.first();
@@ -224,7 +243,7 @@ client.on('interactionCreate', async interaction => {
             const successEmbed = new EmbedBuilder()
                 .setColor('#8A2BE2')
                 .setTitle('DO Verification Complete')
-                .setDescription('✅ You have successfully verified and unlocked server access!');
+                .setDescription('✅ Correct answer! You have successfully verified and unlocked server access.');
 
             await interaction.editReply({ embeds: [successEmbed] });
         } catch (error) {
