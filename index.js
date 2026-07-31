@@ -32,8 +32,8 @@ const VERIFY_CHANNEL_ID = '1528087160790581368';
 const UNVERIFIED_ROLE_ID = '1532817646591017261';
 const VERIFIED_ROLE_ID = '1532817700886155415';
 
-// Store active math questions for users in memory: { userId: { num1, num2, answer } }
-const activeQuizQuestions = new Map();
+// Store active math answers for users in memory: { userId: correctAnswer }
+const activeQuizAnswers = new Map();
 
 client.once('ready', async () => {
     console.log(`[READY] Logged in as ${client.user.tag}`);
@@ -132,7 +132,7 @@ client.once('ready', async () => {
 
 // Event listener to handle interactions
 client.on('interactionCreate', async interaction => {
-    // --- VERIFICATION BUTTON & MODAL HANDLING ---
+    // --- VERIFICATION BUTTON HANDLING ---
     if (interaction.isButton() && interaction.customId === 'start_verification') {
         const member = interaction.member;
 
@@ -146,109 +146,32 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-        try {
-            const dmEmbed = new EmbedBuilder()
-                .setColor('#8A2BE2')
-                .setTitle('DO Verification Quiz')
-                .setDescription('A quick easy math quiz to know if you are a bot or not. Click the button below to solve the math question!');
-
-            const dmButtonRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('open_verify_modal')
-                    .setLabel('Solve Math Question')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🔢')
-            );
-
-            await member.send({
-                embeds: [dmEmbed],
-                components: [dmButtonRow]
-            });
-
-            await interaction.reply({ 
-                content: '📩 I have sent you a private message with a math verification check!', 
-                ephemeral: true 
-            });
-        } catch (error) {
-            console.error('[ERROR] Failed to send DM to user:', error);
-            await interaction.reply({ 
-                content: '❌ Could not send you a private message. Please make sure your DMs are open!', 
-                ephemeral: true 
-            });
-        }
-        return;
-    }
-
-    if (interaction.isButton() && interaction.customId === 'open_verify_modal') {
-        // Generate random math numbers (e.g. addition between 1 and 20)
+        // Generate random math numbers (e.g. addition between 5 and 20)
         const num1 = Math.floor(Math.random() * 15) + 5;
         const num2 = Math.floor(Math.random() * 15) + 1;
         const correctAnswer = num1 + num2;
 
-        activeQuizQuestions.set(interaction.user.id, correctAnswer);
-
-        const verifyModal = new ModalBuilder()
-            .setCustomId('verification_quiz_modal')
-            .setTitle('DO Verification Quiz');
-
-        const answerInput = new TextInputBuilder()
-            .setCustomId('verify_answer_input')
-            .setLabel(`What is ${num1} + ${num2}?`)
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-            .setMaxLength(5);
-
-        verifyModal.addComponents(new ActionRowBuilder().addComponents(answerInput));
-        await interaction.showModal(verifyModal);
-        return;
-    }
-
-    if (interaction.isModalSubmit() && interaction.customId === 'verification_quiz_modal') {
-        await interaction.deferReply({ ephemeral: true });
-
-        const user = interaction.user;
-        const userAnswer = interaction.fields.getTextInputValue('verify_answer_input').trim();
-        const expectedAnswer = activeQuizQuestions.get(user.id);
-
-        if (expectedAnswer === undefined || parseInt(userAnswer, 10) !== expectedAnswer) {
-            return interaction.editReply({ content: '❌ Incorrect math answer! Please click the verification button again to retry.' });
-        }
-
-        // Clean up memory
-        activeQuizQuestions.delete(user.id);
-
-        const guild = await client.guilds.fetch(interaction.guildId || process.env.GUILD_ID).catch(() => null);
-        
-        let member;
-        try {
-            const fetchedGuild = guild || client.guilds.cache.first();
-            member = await fetchedGuild.members.fetch(user.id);
-        } catch (e) {
-            return interaction.editReply({ content: '❌ Could not find your user profile in the server.' });
-        }
-
-        const hasUnverifiedRole = member.roles.cache.has(UNVERIFIED_ROLE_ID);
-        const hasNoRoles = member.roles.cache.size <= 1;
-
-        if (!hasUnverifiedRole && !hasNoRoles) {
-            return interaction.editReply({ content: '❌ You are already verified or do not meet requirements.' });
-        }
+        activeQuizAnswers.set(member.id, correctAnswer);
 
         try {
-            await member.roles.add(VERIFIED_ROLE_ID);
-            if (member.roles.cache.has(UNVERIFIED_ROLE_ID)) {
-                await member.roles.remove(UNVERIFIED_ROLE_ID);
-            }
-
-            const successEmbed = new EmbedBuilder()
+            const dmEmbed = new EmbedBuilder()
                 .setColor('#8A2BE2')
-                .setTitle('DO Verification Complete')
-                .setDescription('✅ Correct answer! You have successfully verified and unlocked server access.');
+                .setTitle('DO Verification Quiz')
+                .setDescription(`To verify, please reply to this DM with the answer to this math question:\n\n**What is ${num1} + ${num2}?**\n*(Just type the number as your message)*`);
 
-            await interaction.editReply({ embeds: [successEmbed] });
+            await member.send({ embeds: [dmEmbed] });
+
+            await interaction.reply({ 
+                content: '📩 I have sent you a private message with a math question! Please reply to the bot in DMs with your answer.', 
+                ephemeral: true 
+            });
         } catch (error) {
-            console.error('[ERROR] Failed to update roles for verification:', error);
-            await interaction.editReply({ content: '❌ There was an error completing your verification. Please contact an admin.' });
+            console.error('[ERROR] Failed to send DM to user:', error);
+            activeQuizAnswers.delete(member.id);
+            await interaction.reply({ 
+                content: '❌ Could not send you a private message. Please make sure your DMs are open!', 
+                ephemeral: true 
+            });
         }
         return;
     }
@@ -428,6 +351,60 @@ client.on('interactionCreate', async interaction => {
                 }
             }, 3000);
         }
+    }
+});
+
+// --- LISTENING TO DIRECT MESSAGE REPLIES FOR VERIFICATION ---
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+    if (message.channel.type !== ChannelType.DM) return;
+
+    const userId = message.author.id;
+    if (!activeQuizAnswers.has(userId)) return;
+
+    const expectedAnswer = activeQuizAnswers.get(userId);
+    const userAnswer = message.content.trim();
+
+    if (parseInt(userAnswer, 10) !== expectedAnswer) {
+        return message.reply('❌ Incorrect answer! Please try typing the correct math answer again, or click the verify button in the server to reset.');
+    }
+
+    // Correct answer! Clean up memory
+    activeQuizAnswers.delete(userId);
+
+    // Find guild and member
+    const guild = client.guilds.cache.first();
+    if (!guild) return message.reply('❌ Could not connect to the server.');
+
+    let member;
+    try {
+        member = await guild.members.fetch(userId);
+    } catch (e) {
+        return message.reply('❌ Could not find your profile in the server.');
+    }
+
+    const hasUnverifiedRole = member.roles.cache.has(UNVERIFIED_ROLE_ID);
+    const hasNoRoles = member.roles.cache.size <= 1;
+
+    if (!hasUnverifiedRole && !hasNoRoles) {
+        return message.reply('❌ You are already verified or do not meet requirements.');
+    }
+
+    try {
+        await member.roles.add(VERIFIED_ROLE_ID);
+        if (member.roles.cache.has(UNVERIFIED_ROLE_ID)) {
+            await member.roles.remove(UNVERIFIED_ROLE_ID);
+        }
+
+        const successEmbed = new EmbedBuilder()
+            .setColor('#8A2BE2')
+            .setTitle('DO Verification Complete')
+            .setDescription('✅ Correct answer! You have successfully verified and unlocked server access.');
+
+        await message.reply({ embeds: [successEmbed] });
+    } catch (error) {
+        console.error('[ERROR] Failed to update roles via DM:', error);
+        await message.reply('❌ There was an error completing your verification. Please contact an admin.');
     }
 });
 
