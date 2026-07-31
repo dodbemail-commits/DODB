@@ -24,7 +24,6 @@ http.createServer((req, res) => {
     console.log(`[HTTP] Server is listening on port ${PORT}`);
 });
 
-// FIXED: Added DirectMessages, MessageContent intents and Partials so DMs can be read properly
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds, 
@@ -44,7 +43,6 @@ const VERIFY_CHANNEL_ID = '1528087160790581368';
 const UNVERIFIED_ROLE_ID = '1532817646591017261';
 const VERIFIED_ROLE_ID = '1532817700886155415';
 
-// Store active math answers for users in memory: { userId: correctAnswer }
 const activeQuizAnswers = new Map();
 
 client.once('ready', async () => {
@@ -53,7 +51,6 @@ client.once('ready', async () => {
     const ticketChannelId = '1528087138225229954';
     
     try {
-        // 1. Deploy Ticket Panel
         const ticketChannel = await client.channels.fetch(ticketChannelId);
         if (ticketChannel) {
             const messages = await ticketChannel.messages.fetch({ limit: 10 });
@@ -82,34 +79,17 @@ client.once('ready', async () => {
                     .setCustomId('ticket_select_menu')
                     .setPlaceholder('Select a ticket option...')
                     .addOptions([
-                        {
-                            label: 'Buying/Free access',
-                            description: 'Purchase a paid access role',
-                            value: 'buying_access',
-                        },
-                        {
-                            label: 'Report Tickets',
-                            description: 'Report someone breaking rules',
-                            value: 'report_ticket',
-                        },
-                        {
-                            label: 'Question Ticket',
-                            description: 'Ask a question',
-                            value: 'question_ticket',
-                        },
+                        { label: 'Buying/Free access', description: 'Purchase a paid access role', value: 'buying_access' },
+                        { label: 'Report Tickets', description: 'Report someone breaking rules', value: 'report_ticket' },
+                        { label: 'Question Ticket', description: 'Ask a question', value: 'question_ticket' },
                     ]);
 
                 const row = new ActionRowBuilder().addComponents(selectMenu);
-
-                await ticketChannel.send({
-                    embeds: [ticketEmbed],
-                    components: [row]
-                });
+                await ticketChannel.send({ embeds: [ticketEmbed], components: [row] });
                 console.log('[SUCCESS] Ticket panel successfully deployed!');
             }
         }
 
-        // 2. Deploy Verify Panel
         const verifyChannel = await client.channels.fetch(VERIFY_CHANNEL_ID);
         if (verifyChannel) {
             const verifyMessages = await verifyChannel.messages.fetch({ limit: 10 });
@@ -129,22 +109,16 @@ client.once('ready', async () => {
                         .setEmoji('✅')
                 );
 
-                await verifyChannel.send({
-                    embeds: [verifyEmbed],
-                    components: [verifyButtonRow]
-                });
+                await verifyChannel.send({ embeds: [verifyEmbed], components: [verifyButtonRow] });
                 console.log('[SUCCESS] Verify panel successfully deployed!');
             }
         }
-
     } catch (error) {
         console.error('[ERROR] Failed to deploy panels:', error);
     }
 });
 
-// Event listener to handle interactions
 client.on('interactionCreate', async interaction => {
-    // --- VERIFICATION BUTTON HANDLING ---
     if (interaction.isButton() && interaction.customId === 'start_verification') {
         const member = interaction.member;
 
@@ -158,7 +132,6 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-        // Generate random math numbers (addition between 5 and 20)
         const num1 = Math.floor(Math.random() * 15) + 5;
         const num2 = Math.floor(Math.random() * 15) + 1;
         const correctAnswer = num1 + num2;
@@ -188,7 +161,6 @@ client.on('interactionCreate', async interaction => {
         return;
     }
 
-    // --- TICKET SELECT MENU HANDLING ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_menu') {
         const selectedValue = interaction.values[0];
 
@@ -219,7 +191,6 @@ client.on('interactionCreate', async interaction => {
         return;
     }
 
-    // --- TICKET MODAL SUBMIT HANDLING ---
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
         const selectedValue = interaction.customId.replace('ticket_modal_', '');
         const reason = interaction.fields.getTextInputValue('ticket_reason_input');
@@ -257,22 +228,10 @@ client.on('interactionCreate', async interaction => {
                 parent: category.id,
                 topic: `ticket-owner-${member.id}`,
                 permissionOverwrites: [
-                    {
-                        id: guild.id,
-                        deny: [PermissionFlagsBits.ViewChannel],
-                    },
-                    {
-                        id: member.id,
-                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
-                    },
-                    {
-                        id: STAFF_ROLE_ID,
-                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages],
-                    },
-                    {
-                        id: client.user.id,
-                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels],
-                    },
+                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                    { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+                    { id: STAFF_ROLE_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages] },
+                    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] },
                 ],
             });
 
@@ -282,16 +241,8 @@ client.on('interactionCreate', async interaction => {
                 .setDescription(`Hello ${member},\nThank you for opening a ticket! Staff will be with you shortly.\n\n**Category:** ${ticketTypeFormatted}\n**Reason provided:**\n> ${reason}`);
 
             const actionRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('ticket_claim')
-                    .setLabel('Claim')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('✋'),
-                new ButtonBuilder()
-                    .setCustomId('ticket_close')
-                    .setLabel('Close Ticket')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('🔒')
+                new ButtonBuilder().setCustomId('ticket_claim').setLabel('Claim').setStyle(ButtonStyle.Primary).setEmoji('✋'),
+                new ButtonBuilder().setCustomId('ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒')
             );
 
             await ticketChannel.send({
@@ -307,10 +258,8 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- TICKET BUTTON ACTIONS (CLAIM / CLOSE) ---
     if (interaction.isButton() && (interaction.customId === 'ticket_claim' || interaction.customId === 'ticket_close')) {
         const member = interaction.member;
-        
         const hasStaffRole = member.roles.cache.has(STAFF_ROLE_ID) || member.permissions.has(PermissionFlagsBits.Administrator);
 
         if (!hasStaffRole) {
@@ -341,10 +290,7 @@ client.on('interactionCreate', async interaction => {
 
             const updatedRow = new ActionRowBuilder().addComponents(updatedClaimButton, closeButton);
 
-            await message.edit({
-                embeds: [currentEmbed],
-                components: [updatedRow]
-            });
+            await message.edit({ embeds: [currentEmbed], components: [updatedRow] });
 
             const claimedEmbed = new EmbedBuilder()
                 .setColor('#2F3136') 
@@ -366,7 +312,6 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// --- LISTENING TO DIRECT MESSAGE REPLIES FOR VERIFICATION ---
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     if (message.channel.type !== ChannelType.DM) return;
@@ -381,10 +326,8 @@ client.on('messageCreate', async message => {
         return message.reply('❌ Incorrect answer! Please try typing the correct math answer again, or click the verify button in the server to reset.');
     }
 
-    // Correct answer! Clean up memory
     activeQuizAnswers.delete(userId);
 
-    // Find guild and member
     const guild = client.guilds.cache.first();
     if (!guild) return message.reply('❌ Could not connect to the server.');
 
