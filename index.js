@@ -1,11 +1,11 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 
 const client = new Client({ 
-    intents: [GatewayIntentBits.Guilds] 
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] 
 });
 
 client.once('ready', async () => {
-    console.log(`Bot logged in as ${client.user.tag}`);
+    console.log(`[READY] Logged in as ${client.user.tag}`);
 
     const channelId = '1528087138225229954';
     
@@ -13,7 +13,15 @@ client.once('ready', async () => {
         const channel = await client.channels.fetch(channelId);
 
         if (!channel) {
-            console.error(`[ERROR] Channel with ID ${channelId} could not be found. Check if the ID is correct and the bot is in the server.`);
+            console.error(`[ERROR] Channel ID ${channelId} not found.`);
+            return;
+        }
+
+        const messages = await channel.messages.fetch({ limit: 10 });
+        const existingPanel = messages.find(m => m.author.id === client.user.id && m.components.length > 0);
+
+        if (existingPanel) {
+            console.log('[INFO] Panel already exists in the channel. Skipping to prevent duplicates.');
             return;
         }
 
@@ -63,9 +71,9 @@ client.once('ready', async () => {
             components: [row]
         });
         
-        console.log('[SUCCESS] The DO ticket panel has been posted to the channel.');
+        console.log('[SUCCESS] Ticket panel successfully deployed!');
     } catch (error) {
-        console.error('[CRITICAL ERROR] Failed to send the panel:', error);
+        console.error('[ERROR] Failed to deploy panel:', error);
     }
 });
 
