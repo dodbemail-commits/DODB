@@ -1,4 +1,15 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
+import http from 'http';
+
+// Render requires web services to bind to a port to stay alive and deploy successfully
+const PORT = process.env.PORT || 3000;
+
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is running!');
+}).listen(PORT, () => {
+    console.log(`[HTTP] Server is listening on port ${PORT}`);
+});
 
 const client = new Client({ 
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] 
