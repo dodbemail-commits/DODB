@@ -24,89 +24,179 @@ http.createServer((req, res) => {
 });
 
 const client = new Client({ 
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] 
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers] 
 });
 
 const STAFF_ROLE_ID = '1528086960042803390';
+const VERIFY_CHANNEL_ID = '1528087160790581368';
+const UNVERIFIED_ROLE_ID = '1532817646591017261';
+const VERIFIED_ROLE_ID = '1532817700886155415';
 
 client.once('ready', async () => {
     console.log(`[READY] Logged in as ${client.user.tag}`);
 
-    const channelId = '1528087138225229954';
+    const ticketChannelId = '1528087138225229954';
     
     try {
-        const channel = await client.channels.fetch(channelId);
+        // 1. Deploy Ticket Panel
+        const ticketChannel = await client.channels.fetch(ticketChannelId);
+        if (ticketChannel) {
+            const messages = await ticketChannel.messages.fetch({ limit: 10 });
+            const existingPanel = messages.find(m => m.author.id === client.user.id && m.components.length > 0);
 
-        if (!channel) {
-            console.error(`[ERROR] Channel ID ${channelId} not found.`);
-            return;
+            if (!existingPanel) {
+                const ticketEmbed = new EmbedBuilder()
+                    .setColor('#8A2BE2')
+                    .setTitle('DO')
+                    .addFields(
+                        {
+                            name: 'Buying/Free access',
+                            value: 'Choose this option if you want to purchase a paid access role. Staff will help you either get ranked or pay in the right way!'
+                        },
+                        {
+                            name: 'Report Tickets',
+                            value: 'Use this option to report anyone breaking rules or causing issues. Please have proof ready so staff, higher-ups, and reviewers can properly look into the situation.'
+                        },
+                        {
+                            name: 'Question Ticket',
+                            value: 'Choose this option if u want to ask a question or want to know if someone if ok to or not'
+                        }
+                    );
+
+                const selectMenu = new StringSelectMenuBuilder()
+                    .setCustomId('ticket_select_menu')
+                    .setPlaceholder('Select a ticket option...')
+                    .addOptions([
+                        {
+                            label: 'Buying/Free access',
+                            description: 'Purchase a paid access role',
+                            value: 'buying_access',
+                        },
+                        {
+                            label: 'Report Tickets',
+                            description: 'Report someone breaking rules',
+                            value: 'report_ticket',
+                        },
+                        {
+                            label: 'Question Ticket',
+                            description: 'Ask a question',
+                            value: 'question_ticket',
+                        },
+                    ]);
+
+                const row = new ActionRowBuilder().addComponents(selectMenu);
+
+                await ticketChannel.send({
+                    embeds: [ticketEmbed],
+                    components: [row]
+                });
+                console.log('[SUCCESS] Ticket panel successfully deployed!');
+            }
         }
 
-        const messages = await channel.messages.fetch({ limit: 10 });
-        const existingPanel = messages.find(m => m.author.id === client.user.id && m.components.length > 0);
+        // 2. Deploy Verify Panel
+        const verifyChannel = await client.channels.fetch(VERIFY_CHANNEL_ID);
+        if (verifyChannel) {
+            const verifyMessages = await verifyChannel.messages.fetch({ limit: 10 });
+            const existingVerifyPanel = verifyMessages.find(m => m.author.id === client.user.id && m.components.length > 0);
 
-        if (!existingPanel) {
-            const ticketEmbed = new EmbedBuilder()
-                .setColor('#8A2BE2')
-                .setTitle('DO')
-                .addFields(
-                    {
-                        name: 'Buying/Free access',
-                        value: 'Choose this option if you want to purchase a paid access role. Staff will help you either get ranked or pay in the right way!'
-                    },
-                    {
-                        name: 'Report Tickets',
-                        value: 'Use this option to report anyone breaking rules or causing issues. Please have proof ready so staff, higher-ups, and reviewers can properly look into the situation.'
-                    },
-                    {
-                        name: 'Question Ticket',
-                        value: 'Choose this option if u want to ask a question or want to know if someone if ok to or not'
-                    }
+            if (!existingVerifyPanel) {
+                const verifyEmbed = new EmbedBuilder()
+                    .setColor('#8A2BE2')
+                    .setTitle('DO Verification')
+                    .setDescription('Welcome to the server! Click the button below to start your verification process and gain access.');
+
+                const verifyButtonRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('start_verification')
+                        .setLabel('Verify')
+                        .setStyle(ButtonStyle.Primary)
+                        .setEmoji('✅')
                 );
 
-            const selectMenu = new StringSelectMenuBuilder()
-                .setCustomId('ticket_select_menu')
-                .setPlaceholder('Select a ticket option...')
-                .addOptions([
-                    {
-                        label: 'Buying/Free access',
-                        description: 'Purchase a paid access role',
-                        value: 'buying_access',
-                    },
-                    {
-                        label: 'Report Tickets',
-                        description: 'Report someone breaking rules',
-                        value: 'report_ticket',
-                    },
-                    {
-                        label: 'Question Ticket',
-                        description: 'Ask a question',
-                        value: 'question_ticket',
-                    },
-                ]);
-
-            const row = new ActionRowBuilder().addComponents(selectMenu);
-
-            await channel.send({
-                embeds: [ticketEmbed],
-                components: [row]
-            });
-            
-            console.log('[SUCCESS] Ticket panel successfully deployed!');
-        } else {
-            console.log('[INFO] Panel already exists in the channel.');
+                await verifyChannel.send({
+                    embeds: [verifyEmbed],
+                    components: [verifyButtonRow]
+                });
+                console.log('[SUCCESS] Verify panel successfully deployed!');
+            }
         }
+
     } catch (error) {
-        console.error('[ERROR] Failed to deploy panel:', error);
+        console.error('[ERROR] Failed to deploy panels:', error);
     }
 });
 
-// Step 1: When user selects a menu option, pop up a modal asking for a reason
+// Event listener to handle interactions
 client.on('interactionCreate', async interaction => {
+    // --- VERIFICATION BUTTON & MODAL HANDLING ---
+    if (interaction.isButton() && interaction.customId === 'start_verification') {
+        const member = interaction.member;
+
+        // Check verification requirements: must have Unverified role OR no roles (excluding @everyone)
+        const hasUnverifiedRole = member.roles.cache.has(UNVERIFIED_ROLE_ID);
+        const hasNoRoles = member.roles.cache.size <= 1; // size is 1 when only @everyone is present
+
+        if (!hasUnverifiedRole && !hasNoRoles) {
+            return interaction.reply({ 
+                content: '❌ You are already verified or do not meet the requirements to verify.', 
+                ephemeral: true 
+            });
+        }
+
+        const verifyModal = new ModalBuilder()
+            .setCustomId('verification_quiz_modal')
+            .setTitle('DO Verification Quiz');
+
+        const answerInput = new TextInputBuilder()
+            .setCustomId('verify_answer_input')
+            .setLabel('Type "verified" or answer your verification question:')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setMaxLength(100);
+
+        verifyModal.addComponents(new ActionRowBuilder().addComponents(answerInput));
+        await interaction.showModal(verifyModal);
+        return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === 'verification_quiz_modal') {
+        await interaction.deferReply({ ephemeral: true });
+
+        const member = interaction.member;
+
+        // Double check requirements upon submission
+        const hasUnverifiedRole = member.roles.cache.has(UNVERIFIED_ROLE_ID);
+        const hasNoRoles = member.roles.cache.size <= 1;
+
+        if (!hasUnverifiedRole && !hasNoRoles) {
+            return interaction.editReply({ content: '❌ You are already verified or do not meet requirements.' });
+        }
+
+        try {
+            // Add verified role and remove unverified role if present
+            await member.roles.add(VERIFIED_ROLE_ID);
+            if (member.roles.cache.has(UNVERIFIED_ROLE_ID)) {
+                await member.roles.remove(UNVERIFIED_ROLE_ID);
+            }
+
+            const successEmbed = new EmbedBuilder()
+                .setColor('#8A2BE2')
+                .setTitle('DO Verification Complete')
+                .setDescription('✅ You have successfully verified and unlocked server access!');
+
+            await interaction.editReply({ embeds: [successEmbed] });
+        } catch (error) {
+            console.error('[ERROR] Failed to update roles for verification:', error);
+            await interaction.editReply({ content: '❌ There was an error completing your verification. Please contact an admin.' });
+        }
+        return;
+    }
+
+    // --- TICKET SELECT MENU HANDLING ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_menu') {
         const selectedValue = interaction.values[0];
 
-        // Check if user already has an open ticket channel in the guild
         const existingChannel = interaction.guild.channels.cache.find(
             c => c.topic === `ticket-owner-${interaction.user.id}`
         );
@@ -134,7 +224,7 @@ client.on('interactionCreate', async interaction => {
         return;
     }
 
-    // Step 2: Handle modal submission and create the ticket
+    // --- TICKET MODAL SUBMIT HANDLING ---
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
         const selectedValue = interaction.customId.replace('ticket_modal_', '');
         const reason = interaction.fields.getTextInputValue('ticket_reason_input');
@@ -144,7 +234,6 @@ client.on('interactionCreate', async interaction => {
         const guild = interaction.guild;
         const member = interaction.member;
 
-        // Double check open ticket count upon submission
         const existingChannel = guild.channels.cache.find(
             c => c.topic === `ticket-owner-${member.id}`
         );
@@ -167,7 +256,6 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
-            // Set permissions: only staff role & user & bot can view. @everyone denied.
             const ticketChannel = await guild.channels.create({
                 name: `${selectedValue}-${member.user.username}`,
                 type: ChannelType.GuildText,
@@ -224,11 +312,10 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // Step 3: Handle Button Actions (Claim / Close)
+    // --- TICKET BUTTON ACTIONS (CLAIM / CLOSE) ---
     if (interaction.isButton() && (interaction.customId === 'ticket_claim' || interaction.customId === 'ticket_close')) {
         const member = interaction.member;
         
-        // Check if member has the staff role or is administrator
         const hasStaffRole = member.roles.cache.has(STAFF_ROLE_ID) || member.permissions.has(PermissionFlagsBits.Administrator);
 
         if (!hasStaffRole) {
@@ -239,13 +326,11 @@ client.on('interactionCreate', async interaction => {
             const message = interaction.message;
             const currentEmbed = message.embeds[0];
 
-            // Check if already claimed by looking at button state
             const claimButton = message.components[0].components.find(c => c.customId === 'ticket_claim');
             if (claimButton && claimButton.data.disabled) {
                 return interaction.reply({ content: '❌ This ticket has already been claimed!', ephemeral: true });
             }
 
-            // Disable claim button and turn it secondary (gray), keep close button red
             const updatedClaimButton = new ButtonBuilder()
                 .setCustomId('ticket_claim')
                 .setLabel('Claimed')
@@ -266,9 +351,8 @@ client.on('interactionCreate', async interaction => {
                 components: [updatedRow]
             });
 
-            // Send gray embed notification message that the user claimed it
             const claimedEmbed = new EmbedBuilder()
-                .setColor('#2F3136') // Dark gray / neutral tone
+                .setColor('#2F3136') 
                 .setDescription(`${member} Claimed The Ticket`);
 
             await interaction.channel.send({ embeds: [claimedEmbed] });
