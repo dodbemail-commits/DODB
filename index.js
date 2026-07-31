@@ -133,9 +133,8 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isButton() && interaction.customId === 'start_verification') {
         const member = interaction.member;
 
-        // Check verification requirements: must have Unverified role OR no roles (excluding @everyone)
         const hasUnverifiedRole = member.roles.cache.has(UNVERIFIED_ROLE_ID);
-        const hasNoRoles = member.roles.cache.size <= 1; // size is 1 when only @everyone is present
+        const hasNoRoles = member.roles.cache.size <= 1;
 
         if (!hasUnverifiedRole && !hasNoRoles) {
             return interaction.reply({ 
@@ -144,6 +143,40 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
+        try {
+            const dmEmbed = new EmbedBuilder()
+                .setColor('#8A2BE2')
+                .setTitle('DO Verification Quiz')
+                .setDescription('A quick easy quiz to know if they are bots or not. Click the button below to answer the verification check.');
+
+            const dmButtonRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('open_verify_modal')
+                    .setLabel('Complete Quiz')
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('📝')
+            );
+
+            await member.send({
+                embeds: [dmEmbed],
+                components: [dmButtonRow]
+            });
+
+            await interaction.reply({ 
+                content: '📩 I have sent you a private message with a quick easy quiz to know if they are bots or not!', 
+                ephemeral: true 
+            });
+        } catch (error) {
+            console.error('[ERROR] Failed to send DM to user:', error);
+            await interaction.reply({ 
+                content: '❌ Could not send you a private message. Please make sure your DMs are open!', 
+                ephemeral: true 
+            });
+        }
+        return;
+    }
+
+    if (interaction.isButton() && interaction.customId === 'open_verify_modal') {
         const verifyModal = new ModalBuilder()
             .setCustomId('verification_quiz_modal')
             .setTitle('DO Verification Quiz');
@@ -163,9 +196,18 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isModalSubmit() && interaction.customId === 'verification_quiz_modal') {
         await interaction.deferReply({ ephemeral: true });
 
-        const member = interaction.member;
+        const user = interaction.user;
+        const guild = await client.guilds.fetch(interaction.guildId || process.env.GUILD_ID).catch(() => null);
+        
+        // If submitted via DM, we need to fetch the member object from the guild manually
+        let member;
+        try {
+            const fetchedGuild = guild || client.guilds.cache.first();
+            member = await fetchedGuild.members.fetch(user.id);
+        } catch (e) {
+            return interaction.editReply({ content: '❌ Could not find your user profile in the server.' });
+        }
 
-        // Double check requirements upon submission
         const hasUnverifiedRole = member.roles.cache.has(UNVERIFIED_ROLE_ID);
         const hasNoRoles = member.roles.cache.size <= 1;
 
@@ -174,7 +216,6 @@ client.on('interactionCreate', async interaction => {
         }
 
         try {
-            // Add verified role and remove unverified role if present
             await member.roles.add(VERIFIED_ROLE_ID);
             if (member.roles.cache.has(UNVERIFIED_ROLE_ID)) {
                 await member.roles.remove(UNVERIFIED_ROLE_ID);
